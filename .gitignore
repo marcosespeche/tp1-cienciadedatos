@@ -1,0 +1,10 @@
+.git
+astro.exe
+.DS_Store
+__pycache__/
+astro
+.venv
+airflow-webserver.pid
+webserver_config.py
+airflow.cfg
+airflow.db
