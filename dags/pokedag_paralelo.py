@@ -1,5 +1,6 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from airflow.operators.email import EmailOperator
 from airflow.providers.http.operators.http import HttpOperator
 from airflow.providers.http.hooks.http import HttpHook
 from datetime import datetime, timedelta
@@ -211,6 +212,21 @@ def merge_and_transform_data(**kwargs):
     df.to_csv(MERGED_DATA_PATH, index=False)
     print(f"[INFO] CSV guardado en: {MERGED_DATA_PATH}")
 
+
+# Mock para crear el archivo que se envia por mail, esto no va en la versión final y se utilizarán en su lugar el CSV y el ZIP
+def mock_crear_archivo(**kwargs):
+    fecha = kwargs["ds"]
+    timestamp = kwargs["ts"]
+
+    folder = 'opt/airflow/files/'
+    file_path = folder + 'prueba_{fecha}.txt'
+
+    os.makedirs(folder, exist_ok=True)
+
+    with open(file_path, 'w') as f:
+        f.write(f"Archivo creado el {fecha} a las {timestamp}")
+    return file_path
+
 # DAG
 with DAG(
     dag_id='pokemon_base_etl_parallel',
@@ -246,4 +262,22 @@ with DAG(
         python_callable=merge_and_transform_data,
     )
 
-    fetch_pokemon_list >> [download_a, download_b] >> merge_transform
+    mock_crear_archivo_task = PythonOperator(
+        task_id = 'mock_crear_archivo_task',
+        python_callable = mock_crear_archivo
+    )
+
+    enviar_correo_manual = EmailOperator(
+        task_id = "enviar_email",
+        to = ['marcos.espeche.28@gmail.com'],
+        subject = 'Entrega Grupo 13 - {{ ds }}',
+        html_content="""
+            <h3>Hola,</h3>
+            <p>El grupo 13 te envía este email con los archivos adjuntos solicitados desde Airflow.</p>
+            <p>Este DAG se ejecutó el {{ ds }} a las {{ ts }}.</p>
+            <p>Saludos!</p>
+            """,
+        files = ['opt/airflow/files/prueba_{{ ds }}.txt']
+    )
+
+    fetch_pokemon_list >> [download_a, download_b] >> merge_transform >> mock_crear_archivo_task >> enviar_correo_manual

@@ -4,6 +4,7 @@ astro.exe
 __pycache__/
 astro
 .venv
+.env
 airflow-webserver.pid
 webserver_config.py
 airflow.cfg
