@@ -262,23 +262,25 @@ with DAG(
         python_callable=merge_and_transform_data,
     )
 
-    mock_crear_archivo_task = PythonOperator(
-        task_id = 'mock_crear_archivo_task',
-        python_callable = mock_crear_archivo
-    )
+    #mock_crear_archivo_task = PythonOperator(
+    #    task_id = 'mock_crear_archivo_task',
+    #    python_callable = mock_crear_archivo
+    #)
+#
+    #enviar_correo_manual = EmailOperator(
+    #    task_id = "enviar_email",
+    #    to = ['marcos.espeche.28@gmail.com'],
+    #    subject = 'Entrega Grupo 13 - {{ ds }}',
+    #    html_content="""
+    #        <h3>Hola,</h3>
+    #        <p>El grupo 13 te envía este email con los archivos adjuntos solicitados desde Airflow.</p>
+    #        <p>Este DAG se ejecutó el {{ ds }} a las {{ ts }}.</p>
+    #        <p>Saludos!</p>
+    #        """,
+    # # Falta configurar la ruta de los archivos
+    #    files=["{{ ti.xcom_pull(task_ids='mock_crear_archivo_task') }}"],
+    #    conn_id = 'smtp_default'
+    #)
 
-    enviar_correo_manual = EmailOperator(
-        task_id = "enviar_email",
-        to = ['marcos.espeche.28@gmail.com'],
-        subject = 'Entrega Grupo 13 - {{ ds }}',
-        html_content="""
-            <h3>Hola,</h3>
-            <p>El grupo 13 te envía este email con los archivos adjuntos solicitados desde Airflow.</p>
-            <p>Este DAG se ejecutó el {{ ds }} a las {{ ts }}.</p>
-            <p>Saludos!</p>
-            """,
-        files=["{{ ti.xcom_pull(task_ids='mock_crear_archivo_task') }}"],
-        conn_id = 'smtp_default'
-    )
-
-    fetch_pokemon_list >> [download_a, download_b] >> merge_transform >> mock_crear_archivo_task >> enviar_correo_manual
+    # Añadir el enviar_correo_manual al final
+    fetch_pokemon_list >> [download_a, download_b] >> merge_transform
