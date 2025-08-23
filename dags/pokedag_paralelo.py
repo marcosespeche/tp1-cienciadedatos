@@ -12,7 +12,7 @@ import logging
 from requests.exceptions import ConnectionError, HTTPError
 logging.getLogger("airflow.hooks.base").setLevel(logging.ERROR)
 
-POKEMON_LIMIT = 1000
+POKEMON_LIMIT = 10
 OUTPUT_PATH = "/tmp/pokemon_data/pokemon_base.csv"
 POKEMON_DATA_PATH = "/tmp/pokemon_data/pokemon_data.json"
 SPECIES_DATA_PATH = "/tmp/pokemon_data/species_data.json"
@@ -218,8 +218,8 @@ def mock_crear_archivo(**kwargs):
     fecha = kwargs["ds"]
     timestamp = kwargs["ts"]
 
-    folder = 'opt/airflow/files/'
-    file_path = folder + 'prueba_{fecha}.txt'
+    folder = '/tmp/airflow/files'
+    file_path = folder + f'/prueba_{fecha}.txt'
 
     os.makedirs(folder, exist_ok=True)
 
@@ -277,7 +277,8 @@ with DAG(
             <p>Este DAG se ejecutó el {{ ds }} a las {{ ts }}.</p>
             <p>Saludos!</p>
             """,
-        files = ['opt/airflow/files/prueba_{{ ds }}.txt']
+        files=["{{ ti.xcom_pull(task_ids='mock_crear_archivo_task') }}"],
+        conn_id = 'smtp_default'
     )
 
     fetch_pokemon_list >> [download_a, download_b] >> merge_transform >> mock_crear_archivo_task >> enviar_correo_manual
