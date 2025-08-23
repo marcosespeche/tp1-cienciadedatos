@@ -9,6 +9,7 @@ import os
 import json
 import time
 import logging
+import zipfile
 from requests.exceptions import ConnectionError, HTTPError
 logging.getLogger("airflow.hooks.base").setLevel(logging.ERROR)
 
@@ -17,6 +18,8 @@ OUTPUT_PATH = "/tmp/pokemon_data/pokemon_base.csv"
 POKEMON_DATA_PATH = "/tmp/pokemon_data/pokemon_data.json"
 SPECIES_DATA_PATH = "/tmp/pokemon_data/species_data.json"
 MERGED_DATA_PATH = "/tmp/pokemon_data/pokemon_merged.csv"
+OUTPUT_FOLDER_PATH= "/tmp/pokemon_data/output/"
+LOGS_PATH= "/usr/local/airflow/logs/"
 
 default_args = {
     'owner': 'pablo',
@@ -177,6 +180,7 @@ def download_species_data(**kwargs):
 
 # Tarea C: combinar y transformar
 def merge_and_transform_data(**kwargs):
+    ds=kwargs['ds']
     with open(POKEMON_DATA_PATH, 'r') as f:
         pokemon_data = json.load(f)
     with open(SPECIES_DATA_PATH, 'r') as f:
@@ -206,12 +210,30 @@ def merge_and_transform_data(**kwargs):
             "special-attack": stats.get("special-attack"),
             "special-defense": stats.get("special-defense"),
             "speed": stats.get("speed"),
+            "grupo": "Grupo 13"
         })
     df = pd.DataFrame(tidy_records)
+    MERGED_DATA_PATH=os.path.join(OUTPUT_FOLDER_PATH,f"final_{ds}.csv")
+    os.makedirs(os.path.dirname(OUTPUT_FOLDER_PATH), exist_ok=True)
     os.makedirs(os.path.dirname(MERGED_DATA_PATH), exist_ok=True)
     df.to_csv(MERGED_DATA_PATH, index=False)
     print(f"[INFO] CSV guardado en: {MERGED_DATA_PATH}")
 
+# Tarea D: generar archivo ZIP con logs del DAG
+def exportar_logs_reales_zip(**kwargs):
+    ds=kwargs['ds']
+    dag_id=kwargs['dag'].dag_id
+    file_name_zip=f"logs_{ds}.zip"
+    logs_path_dag=os.path.join(LOGS_PATH,f"dag_id={ dag_id }")
+    os.makedirs(os.path.dirname(OUTPUT_FOLDER_PATH), exist_ok=True)
+    output_file=OUTPUT_FOLDER_PATH+file_name_zip
+    with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for root, dirs, files in os.walk(logs_path_dag):
+            for file in files:
+                file_path=os.path.join(root, file)
+                file_name=os.path.relpath(file_path, logs_path_dag)
+                zipf.write(file_path, file_name)
+    print(f"[INFO] Archivo ZIP de logs guardado en: {output_file}")
 
 # Mock para crear el archivo que se envia por mail, esto no va en la versión final y se utilizarán en su lugar el CSV y el ZIP
 def mock_crear_archivo(**kwargs):
@@ -262,6 +284,11 @@ with DAG(
         python_callable=merge_and_transform_data,
     )
 
+    compress_logs=PythonOperator(
+        task_id='exportar_logs_reales_zip',
+        python_callable=exportar_logs_reales_zip,
+    )
+
     #mock_crear_archivo_task = PythonOperator(
     #    task_id = 'mock_crear_archivo_task',
     #    python_callable = mock_crear_archivo
@@ -283,4 +310,4 @@ with DAG(
     #)
 
     # Añadir el enviar_correo_manual al final
-    fetch_pokemon_list >> [download_a, download_b] >> merge_transform
+    fetch_pokemon_list >> [download_a, download_b] >> merge_transform >> compress_logs
