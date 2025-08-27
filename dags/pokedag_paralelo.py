@@ -13,7 +13,7 @@ import zipfile
 from requests.exceptions import ConnectionError, HTTPError
 logging.getLogger("airflow.hooks.base").setLevel(logging.ERROR)
 
-POKEMON_LIMIT = 10
+POKEMON_LIMIT = 1000
 OUTPUT_PATH = "/tmp/pokemon_data/pokemon_base.csv"
 POKEMON_DATA_PATH = "/tmp/pokemon_data/pokemon_data.json"
 SPECIES_DATA_PATH = "/tmp/pokemon_data/species_data.json"
@@ -219,6 +219,8 @@ def merge_and_transform_data(**kwargs):
     df.to_csv(MERGED_DATA_PATH, index=False)
     print(f"[INFO] CSV guardado en: {MERGED_DATA_PATH}")
 
+    return MERGED_DATA_PATH
+
 # Tarea D: generar archivo ZIP con logs del DAG
 def exportar_logs_reales_zip(**kwargs):
     ds=kwargs['ds']
@@ -234,20 +236,8 @@ def exportar_logs_reales_zip(**kwargs):
                 file_name=os.path.relpath(file_path, logs_path_dag)
                 zipf.write(file_path, file_name)
     print(f"[INFO] Archivo ZIP de logs guardado en: {output_file}")
+    return output_file
 
-# Mock para crear el archivo que se envia por mail, esto no va en la versión final y se utilizarán en su lugar el CSV y el ZIP
-def mock_crear_archivo(**kwargs):
-    fecha = kwargs["ds"]
-    timestamp = kwargs["ts"]
-
-    folder = '/tmp/airflow/files'
-    file_path = folder + f'/prueba_{fecha}.txt'
-
-    os.makedirs(folder, exist_ok=True)
-
-    with open(file_path, 'w') as f:
-        f.write(f"Archivo creado el {fecha} a las {timestamp}")
-    return file_path
 
 # DAG
 with DAG(
@@ -289,25 +279,20 @@ with DAG(
         python_callable=exportar_logs_reales_zip,
     )
 
-    #mock_crear_archivo_task = PythonOperator(
-    #    task_id = 'mock_crear_archivo_task',
-    #    python_callable = mock_crear_archivo
-    #)
-#
-    #enviar_correo_manual = EmailOperator(
-    #    task_id = "enviar_email",
-    #    to = ['marcos.espeche.28@gmail.com'],
-    #    subject = 'Entrega Grupo 13 - {{ ds }}',
-    #    html_content="""
-    #        <h3>Hola,</h3>
-    #        <p>El grupo 13 te envía este email con los archivos adjuntos solicitados desde Airflow.</p>
-    #        <p>Este DAG se ejecutó el {{ ds }} a las {{ ts }}.</p>
-    #        <p>Saludos!</p>
-    #        """,
-    # # Falta configurar la ruta de los archivos
-    #    files=["{{ ti.xcom_pull(task_ids='mock_crear_archivo_task') }}"],
-    #    conn_id = 'smtp_default'
-    #)
+    enviar_correo_manual = EmailOperator(
+        task_id = "enviar_email",
+        to = ['cienciadedatos.frm.utn@gmail.com'],
+        subject = 'Entrega Grupo 13 - {{ ds }}',
+        html_content="""
+            <h3>Hola,</h3>
+            <p>El grupo 13 te envía este email con los archivos adjuntos solicitados desde Airflow.</p>
+            <p>Este DAG se ejecutó el {{ ds }} a las {{ ts }}.</p>
+            <p>Saludos!</p>
+            """,
+     # Falta configurar la ruta de los archivos
+        files=["{{ ti.xcom_pull(task_ids='merge_and_transform_data') }}", "{{ ti.xcom_pull(task_ids='exportar_logs_reales_zip') }}"],
+        conn_id = 'smtp_default'
+    )
 
     # Añadir el enviar_correo_manual al final
-    fetch_pokemon_list >> [download_a, download_b] >> merge_transform >> compress_logs
+    fetch_pokemon_list >> [download_a, download_b] >> merge_transform >> compress_logs >> enviar_correo_manual
